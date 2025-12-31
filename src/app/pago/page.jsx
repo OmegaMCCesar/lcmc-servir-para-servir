@@ -4,36 +4,33 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import { confirmAppointmentPayment } from "../../lib/appointments";
 
 export default function PagoPage() {
   const router = useRouter();
+
   const [loading, setLoading] = useState(true);
+  const [paying, setPaying] = useState(false);
+
   const [appointment, setAppointment] = useState(null);
   const [holdId, setHoldId] = useState(null);
 
   useEffect(() => {
     const validateHold = async () => {
       const raw = sessionStorage.getItem("heldAppointment");
-      console.log(raw);
-      
 
       if (!raw) {
         router.replace("/agenda");
         return;
       }
 
-      const data = JSON.parse(raw);
-      const { holdId, expiresAt, date, slot } = data;
+      const { holdId, expiresAt, date, slot } = JSON.parse(raw);
 
-      // ⏱ Validar expiración local
       if (!expiresAt || Date.now() > expiresAt) {
         sessionStorage.removeItem("heldAppointment");
         router.replace("/agenda");
         return;
       }
 
-      // 🔥 Validar en Firestore
       const ref = doc(db, "appointments", holdId);
       const snap = await getDoc(ref);
 
@@ -45,14 +42,10 @@ export default function PagoPage() {
 
       const hold = snap.data();
 
-      if (!hold.heldUntil || Date.now() > hold.heldUntil.toMillis()) {
-  sessionStorage.removeItem("heldAppointment");
-  router.replace("/agenda");
-  return;
-}
-
       if (
         hold.status !== "held" ||
+        !hold.heldUntil ||
+        Date.now() > hold.heldUntil.toMillis() ||
         hold.date !== date ||
         hold.slot !== slot
       ) {
@@ -70,27 +63,28 @@ export default function PagoPage() {
   }, [router]);
 
   const handlePay = async () => {
-    if (!holdId) return;
- console.log(holdId, "pago log");
- 
+    if (!holdId || paying) return;
+
+    setPaying(true);
+
     try {
-      // 💳 Aquí después irá Stripe / MercadoPago
-      await confirmAppointmentPayment({ holdId });
+      const res = await fetch("/api/payments/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ holdId }),
+      });
 
-      // ✅ GUARDAR ESTADO DE CITA PAGADA
-      sessionStorage.setItem(
-        "lastPaidAppointment",
-        JSON.stringify({ holdId })
-      );
+      const data = await res.json();
 
-      // 🧹 Limpieza controlada
-      sessionStorage.removeItem("heldAppointment");
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || "No se pudo iniciar el pago");
+      }
 
-      router.push("/cliente");
+      // 🔁 Redirigir a Stripe Checkout
+      window.location.href = data.url;
     } catch (error) {
-      alert(error.message || "No se pudo confirmar la cita");
-      sessionStorage.removeItem("heldAppointment");
-      router.replace("/agenda");
+      alert(error.message || "Error al iniciar el pago");
+      setPaying(false);
     }
   };
 
@@ -117,10 +111,7 @@ export default function PagoPage() {
 
       {/* Resumen */}
       <div className="border border-(--lcmc-gray) p-4 space-y-2">
-        <p className="text-sm text-(--lcmc-white)/60">
-          Servicio
-        </p>
-
+        <p className="text-sm text-(--lcmc-white)/60">Servicio</p>
         <p className="text-(--lcmc-white) font-medium">
           Revisión técnica a domicilio
         </p>
@@ -128,7 +119,6 @@ export default function PagoPage() {
         <p className="text-sm text-(--lcmc-white)/60 mt-4">
           Fecha y horario
         </p>
-
         <p className="text-(--lcmc-white)">
           {appointment.date} · {appointment.slot}
         </p>
@@ -138,9 +128,7 @@ export default function PagoPage() {
         </p>
 
         <p className="text-lg">
-          <span className="line-through text-(--lcmc-white)/50">
-            $750
-          </span>{" "}
+          <span className="line-through text-(--lcmc-white)/50">$750</span>{" "}
           <span className="text-(--lcmc-gold) font-semibold">
             $650 MXN
           </span>
@@ -154,6 +142,7 @@ export default function PagoPage() {
       {/* Botón de pago */}
       <button
         onClick={handlePay}
+        disabled={paying}
         className="
           w-full
           bg-(--lcmc-gold)
@@ -161,14 +150,25 @@ export default function PagoPage() {
           py-3
           font-semibold
           transition
-          hover:opacity-90
+          disabled:opacity-50
+          flex
+          items-center
+          justify-center
+          gap-2
         "
       >
-        Pagar $650 y confirmar cita
+        {paying ? (
+          <>
+            <span className="animate-spin rounded-full h-5 w-5 border-2 border-(--lcmc-black) border-t-transparent"></span>
+            Redirigiendo a pago seguro…
+          </>
+        ) : (
+          "Pagar $650 y confirmar cita"
+        )}
       </button>
 
-      <p className="text-xs text-(--lcmc-white)/50">
-        Al continuar aceptas nuestros términos de servicio.
+      <p className="text-xs text-(--lcmc-white)/50 text-center">
+        Serás redirigido a Stripe para completar el pago de forma segura.
       </p>
 
     </section>

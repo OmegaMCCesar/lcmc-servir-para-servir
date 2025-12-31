@@ -6,7 +6,9 @@ const Header = () => {
       <div className="max-w-7xl mx-auto px-4 flex justify-between items-center">
         
         <h1 className="text-xl font-semibold text-(--lcmc-gold) tracking-wide">
+          <Link href="/">
           LCMC
+          </Link>
         </h1>
 
         <button className="

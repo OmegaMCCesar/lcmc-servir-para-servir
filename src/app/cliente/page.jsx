@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   collection,
   addDoc,
@@ -9,13 +9,17 @@ import {
   getDoc,
   updateDoc,
   serverTimestamp,
+  onSnapshot,
 } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 
 export default function ClientePage() {
   const router = useRouter();
+  const params = useSearchParams();
+  const holdId = params.get("holdId");
+
   const [loading, setLoading] = useState(true);
-  const [holdId, setHoldId] = useState(null);
+  const [appointmentReady, setAppointmentReady] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
@@ -25,30 +29,30 @@ export default function ClientePage() {
   });
 
   useEffect(() => {
-    const validatePaidAppointment = async () => {
-      const raw = sessionStorage.getItem("lastPaidAppointment");
-console.log(raw, "cliente");
+    if (!holdId) {
+      router.replace("/agenda");
+      return;
+    }
 
-      if (!raw) {
+    const ref = doc(db, "appointments", holdId);
+
+    // 🔁 Escuchar cambios hasta que el webhook confirme
+    const unsubscribe = onSnapshot(ref, (snap) => {
+      if (!snap.exists()) {
         router.replace("/agenda");
         return;
       }
 
-      const { holdId } = JSON.parse(raw);
-      const ref = doc(db, "appointments", holdId);
-      const snap = await getDoc(ref);
+      const data = snap.data();
 
-      if (!snap.exists() || snap.data().status !== "confirmed") {
-        router.replace("/agenda");
-        return;
+      if (data.status === "confirmed") {
+        setAppointmentReady(true);
+        setLoading(false);
       }
+    });
 
-      setHoldId(holdId);
-      setLoading(false);
-    };
-
-    validatePaidAppointment();
-  }, [router]);
+    return () => unsubscribe();
+  }, [holdId, router]);
 
   const handleChange = (e) => {
     setForm({
@@ -76,22 +80,28 @@ console.log(raw, "cliente");
         updatedAt: serverTimestamp(),
       });
 
-
       router.push("/orden");
     } catch (error) {
       alert("No se pudo registrar el cliente");
     }
   };
 
+  // 🌀 SPINNER MIENTRAS STRIPE CONFIRMA
   if (loading) {
     return (
-      <section className="max-w-md mx-auto py-20 text-center">
+      <section className="max-w-md mx-auto py-20 text-center space-y-4">
+        <div className="animate-spin mx-auto h-10 w-10 rounded-full border-4 border-(--lcmc-gold) border-t-transparent" />
         <p className="text-(--lcmc-white)/70">
-          Preparando registro...
+          Confirmando tu pago…
+        </p>
+        <p className="text-xs text-(--lcmc-white)/50">
+          Esto puede tardar unos segundos
         </p>
       </section>
     );
   }
+
+  if (!appointmentReady) return null;
 
   return (
     <section className="max-w-md mx-auto space-y-6">

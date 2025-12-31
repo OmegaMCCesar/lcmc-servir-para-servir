@@ -8,10 +8,27 @@ runConfig:
   # memoryMiB: 512
 
 # Environment variables and secrets.
-# env:
-  # Configure environment variables.
-  # See https://firebase.google.com/docs/app-hosting/configure#user-defined-environment
-  # - variable: MESSAGE
+env:
+   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+     value: AIzaSyBBlksXy-03waJ1uh_GPACh_DU87ZszMDg
+   - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+     value: lcmc-servir-para-servir.firebaseapp.com
+   - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+     value: lcmc-servir-para-servir
+   - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+     value: lcmc-servir-para-servir.firebasestorage.app
+   - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+     value: 933768925656
+   - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+     value: 1:933768925656:web:6e7221b2dbed22a57622ad
+   - variable: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+     value: G-4SM8V0LTXB
+   - variable: STRIPE_SECRET_KEY
+     secret: stripeSecretKeyRef
+   - variable: STRIPE_WEBHOOK_SECRET
+     secret: stripeWebhookSecretRef
+   - variable: NEXT_PUBLIC_BASE_URL
+     value: https://lcmc-backend--lcmc-servir-para-servir.us-central1.hosted.app/
   #   value: Hello world!
   #   availability:
   #     - BUILD
